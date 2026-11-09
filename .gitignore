@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+out/
+build_installer/dist/
+build_installer/work/
+build_installer/bin-src/
+build_installer/pyinstaller.log
+settings.json
+history.json
+archivum/
