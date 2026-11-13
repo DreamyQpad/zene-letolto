@@ -64,7 +64,12 @@ CLEAN_ARGS = [
 ]
 
 # Érthető magyar magyarázat a gyakori hibákhoz (a sorrend számít: az első találat nyer)
+# A Spotify nem ad adatot a számhoz (a SpotipyFree KeyError: 'uri'-val, a spotDL SongError-ral szán el)
+SPOTIFY_GONE_RX = r"KeyError: 'uri'|SongError|Invalid URL"
+
 HINTS = [
+    (SPOTIFY_GONE_RX, "Ez a Spotify-link nem érhető el: a számot törölték vagy az országodban nem elérhető, "
+                      "esetleg nem szám / album / lista linket másoltál."),
     (r"(?i)private video", "Privát videó, bejelentkezés nélkül nem tölthető le."),
     (r"(?i)confirm your age|age[- ]restricted|inappropriate for some users",
      "Korhatáros videó: bejelentkezés kellene hozzá."),
@@ -452,18 +457,29 @@ def spotify_info(url):
     try:    # gyors út: csak a Spotify-adatok, YouTube-keresés nélkül
         r = subprocess.run(spotlist_cmd(url), capture_output=True, text=True, encoding="utf-8", errors="replace",
                            env=child_env(), creationflags=CREATE_NO_WINDOW, timeout=120)
-        line = next(l for l in r.stdout.splitlines() if l.startswith("JSON:"))
-        data = json.loads(line[5:])
-        return data if isinstance(data, dict) else {"kind": "list", "name": None, "cover": None, "songs": data}
     except Exception:
-        pass    # tartalék: spotdl save (lassabb, mert minden számhoz YouTube-egyezést is keres)
+        r = None
+    if r is not None:
+        line = next((l for l in r.stdout.splitlines() if l.startswith("JSON:")), None)
+        if line:
+            try:
+                data = json.loads(line[5:])
+                return data if isinstance(data, dict) else {"kind": "list", "name": None, "cover": None, "songs": data}
+            except ValueError:
+                pass
+        elif re.search(SPOTIFY_GONE_RX, r.stderr or ""):
+            raise RuntimeError(hint_for(r.stderr))      # a spotdl save ugyanígy elbukna: nem érdemes próbálni
+    # tartalék: spotdl save (lassabb, mert minden számhoz YouTube-egyezést is keres)
     fd, tmp = tempfile.mkstemp(suffix=".spotdl", prefix="zenelero-")
     os.close(fd)
     try:
-        subprocess.run([*spotdl_cmd(), "save", url, "--save-file", tmp], capture_output=True,
-                       text=True, encoding="utf-8", errors="replace", env=child_env(),
-                       creationflags=CREATE_NO_WINDOW, timeout=240)
-        data = json.loads(Path(tmp).read_text(encoding="utf-8"))
+        r = subprocess.run([*spotdl_cmd(), "save", url, "--save-file", tmp], capture_output=True,
+                           text=True, encoding="utf-8", errors="replace", env=child_env(),
+                           creationflags=CREATE_NO_WINDOW, timeout=240)
+        try:
+            data = json.loads(Path(tmp).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raise RuntimeError(hint_for(r.stderr or "") or "Nem sikerült lekérdezni a Spotify-linket.") from None
     finally:
         try:
             os.unlink(tmp)
@@ -620,8 +636,19 @@ def fix_stdio():
 
 
 def tool_main(name, rest):
-    """Csomagolt exe többfunkciós belépője: a yt-dlp / spotDL / Spotify-listázó ugyanabból a csomagból fut."""
+    """Csomagolt exe többfunkciós belépője: a yt-dlp / spotDL / Spotify-listázó ugyanabból a csomagból fut.
+    A kivételt a hibacsatornára írja és hibakóddal lép ki: egy elkapatlan kivételnél a konzol nélküli exe
+    felugró hibaablakot mutatna a háttérben futó eszköz miatt."""
     fix_stdio()
+    try:
+        _run_tool(name, rest)
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def _run_tool(name, rest):
     if name == "yt-dlp":
         import yt_dlp
         yt_dlp.main(rest)
