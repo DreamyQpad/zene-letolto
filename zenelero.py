@@ -68,8 +68,9 @@ CLEAN_ARGS = [
 SPOTIFY_GONE_RX = r"KeyError: 'uri'|SongError|Invalid URL"
 
 HINTS = [
-    (SPOTIFY_GONE_RX, "Ez a Spotify-link nem érhető el: a számot törölték vagy az országodban nem elérhető, "
-                      "esetleg nem szám / album / lista linket másoltál."),
+    (SPOTIFY_GONE_RX, "A Spotify most nem adott vissza adatot ehhez a linkhez. Próbáld újra egy kis idő múlva. "
+                      "Ha így is marad: a számot törölték, az országodban nem elérhető, "
+                      "vagy nem szám / album / lista linket másoltál."),
     (r"(?i)private video", "Privát videó, bejelentkezés nélkül nem tölthető le."),
     (r"(?i)confirm your age|age[- ]restricted|inappropriate for some users",
      "Korhatáros videó: bejelentkezés kellene hozzá."),
