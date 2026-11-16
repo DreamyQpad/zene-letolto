@@ -53,9 +53,9 @@ class BuildLinuxTest(unittest.TestCase):
             self.assertFalse(relative.startswith(("tests/", "build_installer/", "docs/", "linux/")), name)
 
     def test_modok(self):
-        for relative, mode in (("install.sh", 0o755), ("uninstall.sh", 0o755), ("zenelero.py", 0o755),
-                               ("plat.py", 0o644), ("zenelero.desktop", 0o644), ("requirements.txt", 0o644),
-                               ("LINUX.md", 0o644), ("assets/icon.png", 0o644)):
+        for relative, mode in (("install.sh", 0o755), ("uninstall.sh", 0o755),
+                               ("zenelero.py", 0o644), ("plat.py", 0o644), ("zenelero.desktop", 0o644),
+                               ("requirements.txt", 0o644), ("LINUX.md", 0o644), ("assets/icon.png", 0o644)):
             self.assertEqual(self.members[self.name(relative)].mode, mode, relative)
 
     def test_nincs_crlf(self):
@@ -86,6 +86,13 @@ class BuildLinuxTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as out:
             masodik = build_linux.build(Path(out))
             self.assertEqual(masodik.read_bytes(), self.tar_path.read_bytes())
+
+    def test_a_gzip_es_a_tar_idobelyege_nulla(self):
+        raw = self.tar_path.read_bytes()
+        self.assertEqual(raw[:2], b"\x1f\x8b")
+        self.assertEqual(raw[4:8], b"\0\0\0\0", "a gzip-fejléc mtime mezője")
+        for name, member in self.members.items():
+            self.assertEqual(member.mtime, 0, name)
 
     def test_version_a_zenelero_pyabol(self):
         self.assertEqual(build_linux.version(), zenelero.VERSION)

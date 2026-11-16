@@ -89,7 +89,7 @@ def build(out_dir, docs_dir=None):
     with open(target, "wb") as raw, gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as gz, \
             tarfile.open(fileobj=gz, mode="w") as tar:
         for path in sources:
-            add(tar, path.read_bytes(), path.name, 0o755 if path.name == MAIN_SCRIPT else 0o644)
+            add(tar, path.read_bytes(), path.name, 0o644)
         for name in DATA_FILES:
             add(tar, (ROOT / name).read_bytes(), name, 0o644)
         for src, dst in SCRIPTS.items():
