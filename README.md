@@ -30,6 +30,13 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 Eredmény: `out\Zene-letolto-telepito.exe`. Adatok telepített módban: `%APPDATA%\Zene letöltő\`.
 
+## Linux
+Arch-alapú rendszeren (KDE Plasma, Wayland) is fut: a Windowson épített `Zenelero-linux-<verzió>.tar.gz` csomagot
+(`python build_linux.py`) Linuxon `./install.sh --deps` telepíti, a program az alkalmazásmenüből és a `zenelero`
+paranccsal indul, `./uninstall.sh` távolítja el. Telepítés, fájlhelyek, ismert korlátok és a kézi ellenőrzőlista:
+[LINUX.md](LINUX.md).
+
 ## Állapot
-Windows 11-en használatra kész. Nem teljesen tesztelt: SoundCloud tényleges letöltés, az automatikus frissítés letöltése
+Windows 11-en használatra kész. A Linuxos változat valódi gépen még nem lett tesztelve (a kézi ellenőrzőlista a
+[LINUX.md](LINUX.md)-ben van, egyelőre egyik pontja sem futott le). Nem teljesen tesztelt: SoundCloud tényleges letöltés, az automatikus frissítés letöltése
 telepített módban, néhány oldal (Audiomack – törött yt-dlp-extractor; Spreaker, Libsyn, Acast, Twitch VOD).
