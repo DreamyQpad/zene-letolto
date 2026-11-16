@@ -33,7 +33,7 @@ class ConfigDirTest(unittest.TestCase):
             with self.subTest(env=env):
                 self.assertEqual(config_dir(env), Path.home() / ".config" / "zenelero")
 
-    def test_a_modul_adatmappaja_a_config_dir_es_a_user_bin_ala_esik(self):
+    def test_a_user_bin_az_adatmappa_bin_almappaja(self):
         self.assertEqual(plat_linux.USER_BIN, plat_linux.DATA_DIR / "bin")
 
 
@@ -103,7 +103,7 @@ class KillTreeTest(unittest.TestCase):
             kill_tree(proc)
         killpg.assert_called_once_with(4242, signal.SIGTERM)
         timer.assert_called_once()
-        self.assertTrue(timer.return_value.daemon)
+        self.assertIs(timer.return_value.daemon, True)
         timer.return_value.start.assert_called_once_with()
 
     def test_eltunt_csoport_nem_dob_kivetelt(self):
