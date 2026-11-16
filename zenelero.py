@@ -636,11 +636,39 @@ def fix_stdio():
                                             line_buffering=True))
 
 
+def hide_child_windows():
+    """Minden ezután indított gyerekfolyamat (deno, ffmpeg, ffprobe, cmd) alapból konzolablak nélkül indul.
+    A konzol nélküli exe-nek nincs konzolja, amit a gyerekei örökölhetnének, ezért a spotDL és a yt-dlp
+    számonkénti deno/ffmpeg hívásai mind új, látható konzolablakot nyitnának és elvennék a fókuszt.
+    Az asyncio és a yt-dlp Popen-je is a subprocess.Popen-ből örököl, így ez az egy pont mindkettőt fedi.
+    Az os.system külön eset: a C-s system()-et hívja, a subprocess-t kikerüli. A spotapi importáláskor
+    os.system("")-ot futtat (konzolszín-trükk), ami itt minden eszközindításkor új konzolt és Windows Terminal
+    ablakot nyitna, ezért az os.system a (már ablak nélküli) subprocessen át fut, az üres parancs pedig nem fut."""
+    if sys.platform != "win32" or getattr(subprocess.Popen.__init__, "hides_windows", False):
+        return
+    original = subprocess.Popen.__init__
+
+    def init(self, *args, **kwargs):
+        kwargs["creationflags"] = kwargs.get("creationflags", 0) | CREATE_NO_WINDOW
+        original(self, *args, **kwargs)
+
+    def system(command):
+        if not str(command).strip():
+            return 0
+        shell = os.environ.get("COMSPEC", "cmd.exe")        # a C system()-mel azonos parancssor: <shell> /c <parancs>
+        return subprocess.call(f'"{shell}" /c {command}')
+
+    init.hides_windows = True
+    subprocess.Popen.__init__ = init
+    os.system = system
+
+
 def tool_main(name, rest):
     """Csomagolt exe többfunkciós belépője: a yt-dlp / spotDL / Spotify-listázó ugyanabból a csomagból fut.
     A kivételt a hibacsatornára írja és hibakóddal lép ki: egy elkapatlan kivételnél a konzol nélküli exe
     felugró hibaablakot mutatna a háttérben futó eszköz miatt."""
     fix_stdio()
+    hide_child_windows()
     try:
         _run_tool(name, rest)
     except Exception:
