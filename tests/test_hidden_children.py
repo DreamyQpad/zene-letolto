@@ -40,6 +40,7 @@ class Recorded(Exception):
     pass
 
 
+@unittest.skipUnless(sys.platform == "win32", "Windowsos viselkedés")
 class HideChildWindowsTest(unittest.TestCase):
     def setUp(self):
         self._orig = subprocess.Popen.__init__
@@ -102,7 +103,7 @@ class HideChildWindowsTest(unittest.TestCase):
         self.assertTrue(self.seen["flags"] & plat.CREATE_NO_WINDOW)
 
 
-@unittest.skipUnless(sys.platform == "win32" and PYTHONW.is_file(), "csak Windowson, a .venv pythonw.exe-vel")
+@unittest.skipUnless(sys.platform == "win32" and PYTHONW.is_file(), "Windowsos viselkedés, a .venv pythonw.exe-vel")
 class ConsolelessParentTest(unittest.TestCase):
     def child_console_windows(self, patch):
         """"van konzolablak" a subprocess.Popen-nel és az asyncio-val (spotDL ffmpeg) indított gyereknek."""
