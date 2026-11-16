@@ -4,12 +4,13 @@
 ellenőrzőlista minden pontja `[ ] nem futott`, amíg valaki le nem futtatja. Ugyanaz a program, mint a Windowsos
 változat, egyetlen kódbázisból (`main` ág, nincs külön Linux-ág).
 
-Célgép: Arch-alapú rendszer (Arch, CachyOS, Garuda), KDE Plasma, Wayland. Az ablak XWaylanden fut (tk/customtkinter).
+Célgép: Arch-alapú rendszer (Arch, CachyOS, Garuda), KDE Plasma, Wayland. A felület tk/customtkinter, ezért a terv
+szerint XWaylanden fut; ezt a kézi lista ellenőrzi.
 
 ## Felépítés
 - `zenelero.py` – belépési pont és felület. A platformfüggő részeket a `plat.py` választja (win32 → `plat_windows`,
   különben `plat_linux`).
-- `plat_linux.py` – adatmappa, eszközparancsok, `ffmpeg`/`deno` keresése, gyerekfolyamatok indítása és leállítása
+- `plat_linux.py` – adatmappa, eszközparancsok, `ffmpeg` keresése, gyerekfolyamatok indítása és leállítása
   (`killpg`), mappa megnyitása / fájl kijelölése (`dolphin --select`, különben `xdg-open`), ablak-ikon.
 - `spotify_list.py` – a Spotify-lista lekérése (a spotDL-lel együtt fut).
 - A Windowsos réteg (`plat_windows.py`), a build- és tesztfájlok nincsenek a csomagban.
@@ -22,8 +23,9 @@ tar xzf Zenelero-linux-<verzió>.tar.gz && cd zenelero-<verzió>
 ./install.sh --deps        # a hiányzó rendszercsomagokat (tk, ffmpeg, deno) is felrakja: sudo pacman -S --needed
 zenelero                   # vagy az alkalmazásmenüből: „Zene letöltő"
 ```
-`--deps` nélkül, ha valami hiányzik, az `install.sh` kiírja a hiányzó csomagokat és a `pacman` parancsot, és még
-bármi létrehozása előtt megáll.
+`--deps` nélkül, ha valami hiányzik, az `install.sh` a terve szerint kiírja a hiányzó csomagokat és a `pacman`
+parancsot, és még bármi létrehozása előtt megáll. (Csonkolt környezetben, Windowson Git Bash-sel tesztelve; valódi
+Linuxon a kézi lista 1. és 11. pontja ellenőrzi.)
 
 ## Fájlhelyek
 | Mi | Hol |
@@ -36,22 +38,24 @@ bármi létrehozása előtt megáll.
 | beállítások, előzmények, archívum | `~/.config/zenelero/` (`$XDG_CONFIG_HOME/zenelero`, ha abszolút útvonal) |
 | letöltések (alapból) | `~/Music/Zenelero/` |
 
-Az `install.sh` a `XDG_DATA_HOME`-ot figyelembe veszi. Újrafuttatva frissít (a programot újraírja, a venvben a
-csomagokat frissíti); a `~/.config/zenelero/` tartalmához soha nem nyúl.
+Az `install.sh` a `XDG_DATA_HOME`-ot figyelembe veszi. Újrafuttatva frissítenie kell (a programot újraírja, a venvben a
+csomagokat frissíti), a `~/.config/zenelero/` tartalmához nem nyúl (kézi lista 11.).
 
 ## Frissítés (yt-dlp, spotDL)
-A **Frissítés** gomb a telepített venvben futtatja a `pip install -U yt-dlp spotdl` parancsot (nem kell hozzá root).
-Linuxon nincs automatikus heti ellenőrzés, csak a gomb. Maga a program frissítése: az új csomaggal `./install.sh`.
+A **Frissítés** gomb a kód szerint a telepített venvben futtatja a `pip install -U yt-dlp spotdl` parancsot (nem kell
+hozzá root); Linuxon még nem próbáltuk (kézi lista 6.). Linuxon nincs automatikus heti ellenőrzés, csak a gomb.
+Maga a program frissítése: az új csomaggal `./install.sh`.
 
 ## Eltávolítás
 ```
 ./uninstall.sh             # program, venv, parancs, menübejegyzés, ikon; a beállítások megmaradnak
 ./uninstall.sh --purge     # a beállításokat, előzményeket, archívumot is törli
 ```
-Újrafuttatva (vagy telepítés nélkül) is hibátlanul lefut.
+A script úgy készült, hogy újrafuttatva (vagy telepítés nélkül) is hibátlanul fusson; csonkolt környezetben tesztelve,
+valódi Linuxon a kézi lista 12. pontja ellenőrzi.
 
 ## Ismert korlátok
-- A felület XWaylanden fut (nincs natív Wayland-ablak); a skálázás és a betűk megjelenése ezért eltérhet.
+- A felület XWaylanden fut majd (nincs natív Wayland-ablak); a skálázás és a betűk megjelenése ezért eltérhet.
 - A vágólap-link automatikus beillesztése (fókuszba kerüléskor) XWaylanden korlátozott lehet; ha nem működik, a kézi
   beillesztés (Ctrl+V) marad.
 - Csak Arch-alapú rendszerre (pacman) és KDE-re van megírva; más disztrón a rendszercsomagokat kézzel kell felrakni.
@@ -61,8 +65,8 @@ Linuxon nincs automatikus heti ellenőrzés, csak a gomb. Maga a program frissí
 - Nincs `--tool` belépő és ablakrejtés (nincs csomagolt exe); nincs automatikus heti yt-dlp-frissítés.
 
 ## Hibaelhárítás
-- **Az `install.sh` újrafuttatása `No module named pip` hibával megáll** (jellemzően az Arch Python-főverzió
-  frissítése után: a régi venv a már nem létező Pythonra mutat). Kerülőút:
+- **Az `install.sh` újrafuttatása `No module named pip` hibával megáll** (feltehetően az Arch Python-főverzió
+  frissítése után: a régi venv a már nem létező Pythonra mutat; ez a feltevés nincs Linuxon igazolva). Kerülőút:
   ```
   ./uninstall.sh && ./install.sh
   ```
