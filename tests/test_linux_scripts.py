@@ -27,11 +27,13 @@ PACKAGE_FILES = {
 }
 
 PYTHON3_STUB = r'''#!/usr/bin/env bash
-# `python3 -m venv D`: létrehozza a D/bin/python és D/bin/pip csonkot; a pip az argumentumait a D/pip.log-ba írja.
+# `python3 -m venv D`: létrehozza a D/bin/python és D/bin/pip csonkot (a hívást a csonkmappa venv.log-jába naplózza);
+# a pip az argumentumait a D/pip.log-ba írja.
 # `python3 -c ...`: 0-val tér vissza (STUB_NO_TK esetén a tkinter-próba elbukik).
 if [ "${1:-}" = "-m" ] && [ "${2:-}" = "venv" ]; then
     dir="${!#}"
     mkdir -p "$dir/bin"
+    echo "$dir" >> "$(dirname "$0")/venv.log"
     printf '#!/usr/bin/env bash\nexit 0\n' > "$dir/bin/python"
     printf '#!/usr/bin/env bash\necho "$@" >> "$(dirname "$0")/../pip.log"\n' > "$dir/bin/pip"
     chmod +x "$dir/bin/python" "$dir/bin/pip"
@@ -247,6 +249,90 @@ class LinuxScriptsTest(unittest.TestCase):
 
     def test_eltavolitas_telepites_nelkul(self):
         self.assertOk(self.uninstall())
+
+    def venv_hivasok(self):
+        log = self.stubs / "venv.log"
+        return log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+
+    def test_serult_venv_ujraepul(self):
+        settings = self.home / ".config" / "zenelero" / "settings.json"
+        write_lf(settings, '{"x": 1}')
+        self.assertOk(self.install())
+        self.assertEqual(len(self.venv_hivasok()), 1)
+        marker = self.base / "venv" / "marker"
+        marker.write_text("x", encoding="utf-8")
+        write_lf(self.base / "venv" / "bin" / "python", "#!/usr/bin/env bash\nexit 1\n")
+        r = self.install()
+        self.assertOk(r)
+        self.assertEqual(len(self.venv_hivasok()), 2, "a törött venvet újra kell építeni")
+        self.assertFalse(marker.exists(), "az újraépített venv tiszta")
+        self.assertTrue((self.base / "venv" / "pip.log").is_file(), "az újraépített venvbe a pip telepít")
+        self.assertEqual(settings.read_text(encoding="utf-8"), '{"x": 1}')
+
+    def test_hianyzo_venv_python_is_ujraepul(self):
+        self.assertOk(self.install())
+        (self.base / "venv" / "bin" / "python").unlink()
+        self.assertOk(self.install())
+        self.assertEqual(len(self.venv_hivasok()), 2)
+
+    def test_ep_venv_nem_epul_ujra(self):
+        self.assertOk(self.install())
+        self.assertOk(self.install())
+        self.assertEqual(len(self.venv_hivasok()), 1)
+
+    def test_forrasmappabol_futtatva_megall_es_nem_torol(self):
+        forras = self.pkg.parent / "repo_linux"
+        for name in ("install.sh", "zenelero.desktop"):
+            target = forras / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((ROOT / "linux" / name).read_bytes().replace(b"\r\n", b"\n"))
+        regi = self.base / "app" / "meglevo.txt"
+        write_lf(regi, "x")
+        r = self.bash(bash_path(forras / "install.sh"))
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("kicsomagolt csomag", r.stderr)
+        self.assertTrue(regi.is_file(), "a meglévő app mappa érintetlen")
+        self.assertFalse((self.home / ".local" / "bin").exists())
+
+    def test_install_ismeretlen_kapcsolo_semmit_nem_csinal(self):
+        r = self.install("--foo", "--deps")
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("--foo", r.stderr)
+        self.assertEqual(list(self.home.iterdir()), [], "semmi nem jöhetett létre")
+        self.assertFalse((self.stubs / "pacman.log").exists(), "a --deps sem futhatott le")
+
+    def test_install_help_csak_kiir(self):
+        for flag in ("--help", "-h"):
+            with self.subTest(flag=flag):
+                r = self.install(flag)
+                self.assertOk(r)
+                self.assertIn("--deps", r.stdout)
+                self.assertEqual(list(self.home.iterdir()), [])
+
+    def test_uninstall_ismeretlen_kapcsolo_nem_torol(self):
+        settings = self.home / ".config" / "zenelero" / "settings.json"
+        write_lf(settings, "{}")
+        self.assertOk(self.install())
+        for args in (("--foo",), ("--purge", "--foo"), ("--foo", "--purge")):
+            with self.subTest(args=args):
+                r = self.uninstall(*args)
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn("--foo", r.stderr)
+                self.assertTrue((self.base / "app" / "zenelero.py").is_file())
+                self.assertTrue((self.home / ".local/bin/zenelero").is_file())
+                self.assertTrue(settings.is_file())
+
+    def test_uninstall_help_csak_kiir(self):
+        settings = self.home / ".config" / "zenelero" / "settings.json"
+        write_lf(settings, "{}")
+        self.assertOk(self.install())
+        for flag in ("--help", "-h"):
+            with self.subTest(flag=flag):
+                r = self.uninstall(flag)
+                self.assertOk(r)
+                self.assertIn("--purge", r.stdout)
+                self.assertTrue((self.base / "app" / "zenelero.py").is_file())
+                self.assertTrue(settings.is_file())
 
 
 class DesktopFileTest(unittest.TestCase):

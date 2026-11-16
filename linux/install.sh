@@ -15,13 +15,24 @@ BASE="$DATA/zenelero"
 APP="$BASE/app"
 VENV="$BASE/venv"
 BIN="$HOME/.local/bin"
-WANT_DEPS=0
-[ "${1:-}" = "--deps" ] && WANT_DEPS=1
 
 say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 die() { printf '\033[31mHIBA: %s\033[0m\n' "$*" >&2; exit 1; }
 # Gyorsítótár-frissítő: csak ha van ilyen program, és a hibája sosem állítja meg a telepítést.
 refresh() { command -v "$1" >/dev/null 2>&1 && { "$@" >/dev/null 2>&1 || true; }; return 0; }
+usage() { printf 'Használat: ./install.sh [--deps]\n  --deps   a hiányzó rendszercsomagokat is felrakja (sudo pacman -S --needed)\n'; }
+
+# ---- kapcsolók és a forrás ellenőrzése (bármi létrehozása vagy törlése előtt) ----------------------
+WANT_DEPS=0
+for arg in "$@"; do
+    case "$arg" in
+        --deps) WANT_DEPS=1 ;;
+        -h|--help) usage; exit 0 ;;
+        *) printf 'Ismeretlen kapcsoló: %s\n' "$arg" >&2; usage >&2; exit 2 ;;
+    esac
+done
+[ -f "$SRC/zenelero.py" ] && [ -f "$SRC/requirements.txt" ] && [ -f "$SRC/assets/icon.png" ] \
+    || die "A kicsomagolt csomagból futtasd az install.sh-t."
 
 # ---- rendszerfüggőségek (bármi létrehozása előtt) ---------------------------------------------
 # tk: az ablakok · ffmpeg: átkódolás, címkézés · deno: a yt-dlp YouTube-hoz használja (yt-dlp-ejs)
@@ -55,8 +66,11 @@ mkdir -p "$APP"
 cp -r "$SRC"/. "$APP"/
 rm -f "$APP/install.sh" "$APP/uninstall.sh" "$APP/zenelero.desktop"
 
-if [ ! -x "$VENV/bin/python" ]; then
+# A venv épségét a benne lévő Python próbája dönti el, nem a létezése: egy rendszer-Python főverzió-frissítés
+# után a venv/bin/python az új Pythonra mutat, a csomagok viszont a régi lib/python3.N alatt maradnak.
+if ! "$VENV/bin/python" -c 'import pip' >/dev/null 2>&1; then
     say "Virtuális környezet: $VENV"
+    rm -rf "$VENV"
     python3 -m venv "$VENV"
 fi
 say "Python-csomagok (pip)"

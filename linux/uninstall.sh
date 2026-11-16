@@ -16,6 +16,17 @@ esac
 
 # Gyorsítótár-frissítő: csak ha van ilyen program, és a hibája sosem állítja meg az eltávolítást.
 refresh() { command -v "$1" >/dev/null 2>&1 && { "$@" >/dev/null 2>&1 || true; }; return 0; }
+usage() { printf 'Használat: ./uninstall.sh [--purge]\n  --purge   a beállítások, az előzmények és az archívum is törlődik\n'; }
+
+# Kapcsolók ellenőrzése törlés előtt: ismeretlen kapcsolóra nem törlünk semmit.
+PURGE=0
+for arg in "$@"; do
+    case "$arg" in
+        --purge) PURGE=1 ;;
+        -h|--help) usage; exit 0 ;;
+        *) printf 'Ismeretlen kapcsoló: %s\n' "$arg" >&2; usage >&2; exit 2 ;;
+    esac
+done
 
 rm -rf "$DATA/zenelero"
 rm -f "$HOME/.local/bin/zenelero" \
@@ -27,7 +38,7 @@ refresh kbuildsycoca6
 refresh gtk-update-icon-cache -f -t "$DATA/icons/hicolor"
 echo "A program eltávolítva."
 
-if [ "${1:-}" = "--purge" ]; then
+if [ "$PURGE" = 1 ]; then
     rm -rf "$CONF"
     echo "A beállítások és az előzmények is törölve."
 else
