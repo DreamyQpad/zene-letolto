@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Zene letöltő
+Comment=Zene és videó letöltése YouTube-ról, Spotify-ról, SoundCloudról és más oldalakról
+Exec=@EXEC@
+Icon=zenelero
+Terminal=false
+Categories=AudioVideo;Audio;Network;
