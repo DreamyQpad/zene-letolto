@@ -4,14 +4,12 @@ Indítás: asztali parancsikon vagy zenelero.bat.
 CLI: python zenelero.py <link> [mappa] [--video] [--sort] [--clean] [--archive] [--split] [--norm] [--m3u]
                          [--nolyrics] [--start=1:30] [--end=3:45]
 """
-import glob
 import hashlib
 import io
 import json
 import os
 import queue
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -20,18 +18,14 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from plat import (DATA_DIR, FFMPEG_EXE, FROZEN, LOG_FONT, PY, USER_BIN, child_env, find_ffmpeg_dir, fix_stdio,
+                  hide_child_windows, kill_tree, open_folder, reveal, set_window_icon, spawn_kwargs, spotdl_cmd,
+                  spotlist_cmd, ytdlp_cmd)
+
 HERE = Path(__file__).resolve().parent
-FROZEN = bool(getattr(sys, "frozen", False))          # PyInstallerrel csomagolt (telepített) változat
-APP_DIR = Path(sys.executable).resolve().parent if FROZEN else HERE
-BIN_DIR = APP_DIR / "bin"                              # ffmpeg.exe, deno.exe a telepítőből
-RES_DIR = Path(getattr(sys, "_MEIPASS", HERE))         # csomagolt erőforrások (ikon)
-DATA_DIR = (Path(os.environ.get("APPDATA", str(Path.home()))) / "Zene letöltő") if FROZEN else HERE
-USER_BIN = DATA_DIR / "bin"                            # a Frissítéssel letöltött yt-dlp.exe
-PY = HERE / ".venv" / "Scripts" / "python.exe"
 DEFAULT_OUT = Path.home() / "Music" / "Zenelero"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 HISTORY_FILE = DATA_DIR / "history.json"
-CREATE_NO_WINDOW = 0x08000000
 YTDLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
 YTDLP_API = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
 
@@ -104,47 +98,8 @@ def hint_for(text):
     return None
 
 
-def ytdlp_cmd():
-    if FROZEN:
-        user_exe = USER_BIN / "yt-dlp.exe"             # a Frissítéssel letöltött, újabb verzió elsőbbséget élvez
-        return [str(user_exe)] if user_exe.is_file() else [sys.executable, "--tool", "yt-dlp"]
-    return [str(PY), "-m", "yt_dlp"]
-
-
-def spotdl_cmd():
-    return [sys.executable, "--tool", "spotdl"] if FROZEN else [str(PY), "-m", "spotdl"]
-
-
-def spotlist_cmd(url):
-    return ([sys.executable, "--tool", "spotify-list", url] if FROZEN
-            else [str(PY), str(HERE / "spotify_list.py"), url])
-
-
-def find_ffmpeg_dir():
-    if (BIN_DIR / "ffmpeg.exe").is_file():
-        return str(BIN_DIR)
-    p = shutil.which("ffmpeg")
-    if p:
-        return str(Path(p).parent)
-    pattern = os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gyan.FFmpeg*\**\bin\ffmpeg.exe")
-    hits = glob.glob(pattern, recursive=True)
-    return str(Path(hits[0]).parent) if hits else None
-
-
 def is_spotify(url):
     return "spotify.com" in url or url.startswith("spotify:")
-
-
-def child_env():
-    """A deno (yt-dlp JS-futtatója) PATH-ra tétele akkor is, ha az Explorer még a régi PATH-t látja."""
-    env = os.environ.copy()
-    if (BIN_DIR / "deno.exe").is_file():
-        env["PATH"] = str(BIN_DIR) + os.pathsep + env.get("PATH", "")
-    elif not shutil.which("deno"):
-        hits = glob.glob(os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\DenoLand.Deno*\deno.exe"))
-        if hits:
-            env["PATH"] = str(Path(hits[0]).parent) + os.pathsep + env.get("PATH", "")
-    return env
 
 
 def default_opts(**kw):
@@ -192,7 +147,7 @@ def build_command(url, out, o, listfile=None):
         queries = o["items"] or [url]          # kiválasztásnál a szám-URL-ek
         cmd = [*spotdl_cmd(), "download", *queries, "--output", str(out / tmpl), "--format", fmt]
         if ff:
-            cmd += ["--ffmpeg", str(Path(ff) / "ffmpeg.exe")]
+            cmd += ["--ffmpeg", str(Path(ff) / FFMPEG_EXE)]
         cmd += ["--lyrics", "synced", "genius", "musixmatch"] if o["lyrics"] else ["--lyrics"]
         if o["normalize"]:
             cmd += ["--ffmpeg-args", NORM_AF]
@@ -239,17 +194,11 @@ def build_command(url, out, o, listfile=None):
     return cmd
 
 
-def kill_tree(proc):
-    if proc and proc.poll() is None:
-        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True,
-                       creationflags=CREATE_NO_WINDOW)
-
-
 def stream(cmd, log, holder=None):
     """Parancs futtatása, a kimenetet soronként a log-nak adja. holder: {"proc":..., "cancel":bool}."""
     holder = holder if holder is not None else {}
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                            encoding="utf-8", errors="replace", creationflags=CREATE_NO_WINDOW,
+                            encoding="utf-8", errors="replace", **spawn_kwargs(),
                             env=child_env())
     holder["proc"] = proc
     if holder.get("cancel"):               # a megszakítás épp az indulás előtt érkezett
@@ -457,7 +406,7 @@ def spotify_info(url):
     """-> {"kind","name","cover","songs":[{"url","artist","name","duration"}]}"""
     try:    # gyors út: csak a Spotify-adatok, YouTube-keresés nélkül
         r = subprocess.run(spotlist_cmd(url), capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           env=child_env(), creationflags=CREATE_NO_WINDOW, timeout=120)
+                           env=child_env(), **spawn_kwargs(), timeout=120)
     except Exception:
         r = None
     if r is not None:
@@ -476,7 +425,7 @@ def spotify_info(url):
     try:
         r = subprocess.run([*spotdl_cmd(), "save", url, "--save-file", tmp], capture_output=True,
                            text=True, encoding="utf-8", errors="replace", env=child_env(),
-                           creationflags=CREATE_NO_WINDOW, timeout=240)
+                           **spawn_kwargs(), timeout=240)
         try:
             data = json.loads(Path(tmp).read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -513,7 +462,7 @@ def fetch_preview(url):
     else:
         r = subprocess.run([*ytdlp_cmd(), "-J", "--flat-playlist", "--yes-playlist", url], capture_output=True,
                            text=True, encoding="utf-8", errors="replace", env=child_env(),
-                           creationflags=CREATE_NO_WINDOW, timeout=240)
+                           **spawn_kwargs(), timeout=240)
         try:
             data = json.loads(r.stdout)
         except ValueError:
@@ -568,7 +517,7 @@ def current_ytdlp_version():
     if FROZEN and exe.is_file():
         try:
             r = subprocess.run([str(exe), "--version"], capture_output=True, text=True, env=child_env(),
-                               creationflags=CREATE_NO_WINDOW, timeout=90)
+                               **spawn_kwargs(), timeout=90)
             if r.stdout.strip():
                 return r.stdout.strip()
         except Exception:
@@ -618,49 +567,6 @@ def cli():
     out = Path(args[1]) if len(args) > 1 else DEFAULT_OUT
     res = run(args[0], out, o, (lambda s: print(s, end="")) if sys.stdout else (lambda s: None))
     sys.exit(res["code"])
-
-
-def fix_stdio():
-    """Ablakos (konzol nélküli) exe-ben a sys.stdout None; a szülő csöveit az öröklött handle-ökből építjük újra."""
-    import ctypes
-    import msvcrt
-    for name, std_id, mode in (("stdout", -11, os.O_WRONLY), ("stderr", -12, os.O_WRONLY)):
-        if getattr(sys, name) is not None:
-            continue
-        h = ctypes.windll.kernel32.GetStdHandle(std_id)
-        if h in (0, -1, None):
-            setattr(sys, name, open(os.devnull, "w"))
-            continue
-        fd = msvcrt.open_osfhandle(h, mode)
-        setattr(sys, name, io.TextIOWrapper(os.fdopen(fd, "wb", 0), encoding="utf-8", errors="replace",
-                                            line_buffering=True))
-
-
-def hide_child_windows():
-    """Minden ezután indított gyerekfolyamat (deno, ffmpeg, ffprobe, cmd) alapból konzolablak nélkül indul.
-    A konzol nélküli exe-nek nincs konzolja, amit a gyerekei örökölhetnének, ezért a spotDL és a yt-dlp
-    számonkénti deno/ffmpeg hívásai mind új, látható konzolablakot nyitnának és elvennék a fókuszt.
-    Az asyncio és a yt-dlp Popen-je is a subprocess.Popen-ből örököl, így ez az egy pont mindkettőt fedi.
-    Az os.system külön eset: a C-s system()-et hívja, a subprocess-t kikerüli. A spotapi importáláskor
-    os.system("")-ot futtat (konzolszín-trükk), ami itt minden eszközindításkor új konzolt és Windows Terminal
-    ablakot nyitna, ezért az os.system a (már ablak nélküli) subprocessen át fut, az üres parancs pedig nem fut."""
-    if sys.platform != "win32" or getattr(subprocess.Popen.__init__, "hides_windows", False):
-        return
-    original = subprocess.Popen.__init__
-
-    def init(self, *args, **kwargs):
-        kwargs["creationflags"] = kwargs.get("creationflags", 0) | CREATE_NO_WINDOW
-        original(self, *args, **kwargs)
-
-    def system(command):
-        if not str(command).strip():
-            return 0
-        shell = os.environ.get("COMSPEC", "cmd.exe")        # a C system()-mel azonos parancssor: <shell> /c <parancs>
-        return subprocess.call(f'"{shell}" /c {command}')
-
-    init.hides_windows = True
-    subprocess.Popen.__init__ = init
-    os.system = system
 
 
 def tool_main(name, rest):
@@ -755,18 +661,6 @@ def save_history(h):
         pass
 
 
-def reveal(files, folder):
-    """Fájl kijelölése a Fájlkezelőben (ha megvan), különben a mappa megnyitása."""
-    try:
-        first = next((f for f in files if Path(f).exists()), None)
-        if first:
-            subprocess.Popen(f'explorer /select,"{first}"')
-        elif folder and Path(folder).exists():
-            os.startfile(folder)
-    except OSError:
-        pass
-
-
 def gui():
     import customtkinter as ctk
     from tkinter import filedialog
@@ -791,9 +685,7 @@ def gui():
     root.title("Zene letöltő")
     root.geometry("920x940")
     root.minsize(800, 780)
-    ico = RES_DIR / "assets" / "icon.ico"
-    if ico.is_file():       # a customtkinter kb. 200 ms után felülírja az ikont, ezért késleltetve állítjuk
-        root.after(300, lambda: root.iconbitmap(str(ico)))
+    set_window_icon(root)
 
     def set_s(key, value):
         S[key] = value
@@ -880,10 +772,10 @@ def gui():
             w["out"].insert(0, str(Path(d)))
             set_s("out", str(Path(d)))
 
-    def open_folder():
+    def open_out_folder():
         p = Path(w["out"].get() or DEFAULT_OUT)
         p.mkdir(parents=True, exist_ok=True)
-        os.startfile(p)
+        open_folder(p)
 
     def log_write(s):
         log_buf.append(s)
@@ -1614,7 +1506,7 @@ def gui():
         w["out"].insert(0, S["out"])
         w["out"].pack(side="left", fill="x", expand=True)
         ctk.CTkButton(r4, text="Tallózás", width=90, height=34, command=browse, **grey).pack(side="left", padx=(8, 0))
-        ctk.CTkButton(r4, text="Megnyitás", width=90, height=34, command=open_folder, **grey).pack(
+        ctk.CTkButton(r4, text="Megnyitás", width=90, height=34, command=open_out_folder, **grey).pack(
             side="left", padx=(8, 0))
 
         # letöltés gomb + megszakítás + sáv
@@ -1641,7 +1533,7 @@ def gui():
             side="right")
         w["qframe"] = ctk.CTkScrollableFrame(tq, fg_color="transparent")
         w["qframe"].pack(fill="both", expand=True, pady=(6, 0))
-        w["log"] = ctk.CTkTextbox(w["tabs"].tab("Napló"), corner_radius=12, font=ctk.CTkFont(family="Consolas", size=12),
+        w["log"] = ctk.CTkTextbox(w["tabs"].tab("Napló"), corner_radius=12, font=ctk.CTkFont(family=LOG_FONT, size=12),
                                   wrap="word", state="disabled", fg_color=("gray96", "gray12"),
                                   text_color=("gray15", "gray85"))
         w["log"].pack(fill="both", expand=True)

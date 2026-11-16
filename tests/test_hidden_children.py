@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import plat  # noqa: E402
 import zenelero  # noqa: E402
 
 PYTHONW = zenelero.PY.with_name("pythonw.exe")
@@ -58,13 +59,13 @@ class HideChildWindowsTest(unittest.TestCase):
 
     def test_a_gyerekfolyamat_alapbol_ablak_nelkul_indul(self):
         zenelero.hide_child_windows()
-        self.assertTrue(self.launch() & zenelero.CREATE_NO_WINDOW)
+        self.assertTrue(self.launch() & plat.CREATE_NO_WINDOW)
 
     def test_a_kifejezetten_kert_flag_megmarad(self):
         zenelero.hide_child_windows()
         flags = self.launch(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
         self.assertTrue(flags & subprocess.CREATE_NEW_PROCESS_GROUP)
-        self.assertTrue(flags & zenelero.CREATE_NO_WINDOW)
+        self.assertTrue(flags & plat.CREATE_NO_WINDOW)
 
     def test_ketszeri_hivas_nem_halmozza_a_burkolast(self):
         zenelero.hide_child_windows()
@@ -77,7 +78,7 @@ class HideChildWindowsTest(unittest.TestCase):
         zenelero.hide_child_windows()
         with self.assertRaises(Recorded):
             os.system("echo szia")
-        self.assertTrue(self.seen["flags"] & zenelero.CREATE_NO_WINDOW)
+        self.assertTrue(self.seen["flags"] & plat.CREATE_NO_WINDOW)
 
     def test_az_ures_os_system_nem_indit_semmit(self):
         """A spotapi importáláskor os.system("")-ot hív (konzolszín-trükk): ablak nélküli exe-ben ez
@@ -98,7 +99,7 @@ class HideChildWindowsTest(unittest.TestCase):
         zenelero.hide_child_windows()
         with self.assertRaises(Recorded):
             YtPopen(["nincs-ilyen-program"])
-        self.assertTrue(self.seen["flags"] & zenelero.CREATE_NO_WINDOW)
+        self.assertTrue(self.seen["flags"] & plat.CREATE_NO_WINDOW)
 
 
 @unittest.skipUnless(sys.platform == "win32" and PYTHONW.is_file(), "csak Windowson, a .venv pythonw.exe-vel")
