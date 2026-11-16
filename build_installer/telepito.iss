@@ -2,7 +2,7 @@
 ; Előfeltétel: build_installer\dist\ZeneLetolto\ kész (PyInstaller) és benne a bin\ffmpeg.exe + bin\deno.exe.
 
 #define AppName "Zene letöltő"
-#define AppVersion "1.0"
+#define AppVersion "1.1.0"
 #define AppExe "ZeneLetolto.exe"
 
 [Setup]

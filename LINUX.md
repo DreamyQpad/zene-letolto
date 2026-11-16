@@ -95,6 +95,7 @@ valódi Linuxon a kézi lista 12. pontja ellenőrzi.
 11. [ ] nem futott – az `install.sh` újrafuttatása nem bántja a beállításokat (`~/.config/zenelero`).
 12. [ ] nem futott – `uninstall.sh` (és `--purge`) a leírás szerint töröl.
 13. [ ] nem futott – `deno` nélkül `./install.sh` (`--deps` nélkül) → kiírja a pacman-parancsot, megáll, a `~/.local/share/zenelero` nem jön létre.
+14. [ ] nem futott – Python-minor frissítés után (vagy a `venv/bin/python` elrontása után) az `./install.sh` újrafuttatása újraépíti a venvet, és a program indul.
 
 ## Tesztek
 `python -m unittest discover -s tests` a repó gyökeréből (a külső programokat csonkok helyettesítik; a bash-os

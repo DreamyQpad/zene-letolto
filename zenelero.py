@@ -29,7 +29,7 @@ SETTINGS_FILE = DATA_DIR / "settings.json"
 HISTORY_FILE = DATA_DIR / "history.json"
 YTDLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
 YTDLP_API = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 
 AUDIO_FORMATS = ["mp3", "flac", "m4a", "opus", "wav"]
 VIDEO_QUALITIES = ["legjobb (max 1080p)", "2160p", "1440p", "1080p", "720p", "480p", "360p"]
