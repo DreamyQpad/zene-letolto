@@ -1,4 +1,4 @@
-"""A Windowsos platformréteg jellemzőtesztjei: a kiemelés előtti viselkedést rögzítik."""
+"""A Windowsos platformréteg viselkedését rögzítő tesztek."""
 import os
 import sys
 import tempfile
