@@ -1,6 +1,7 @@
 """Zene letöltő - YouTube / Spotify / SoundCloud link -> hang vagy videó. yt-dlp + spotDL alapon.
 
-Indítás: asztali parancsikon vagy zenelero.bat.
+Indítás: Windowson asztali parancsikon vagy zenelero.bat, Linuxon a telepítő által felrakott `zenelero` parancs
+(vagy az alkalmazásmenü bejegyzése).
 CLI: python zenelero.py <link> [mappa] [--video] [--sort] [--clean] [--archive] [--split] [--norm] [--m3u]
                          [--nolyrics] [--start=1:30] [--end=3:45]
 """
