@@ -9,3 +9,4 @@ build_installer/pyinstaller.log
 settings.json
 history.json
 archivum/
+.idea/
