@@ -50,8 +50,13 @@ PLAIN_STUB = '#!/usr/bin/env bash\nexit 0\n'
 
 # bash -c wrapper: a HOME-ot és a PATH-ot a bash-en belül, bash-formában állítja be (nincs Windows-útvonal-átalakítás),
 # a PATH elején a csonkmappa, mögötte csak a bash saját mappája (coreutils): a valódi ffmpeg/deno nem szivároghat be.
-WRAPPER = ('export HOME="$1" PATH="$2:${BASH%/*}"; shift 2; '
+# Linuxon (POSIX) a csonkmappa mögött a $3 áll: csak a scriptek által használt rendszereszközök symlinkjei, így a
+# valódi ffmpeg/deno/pacman/update-desktop-database sem szivároghat be. Üres $3 esetén (Windows, Git Bash) a bash saját mappája.
+WRAPPER = ('export HOME="$1" PATH="$2:${3:-${BASH%/*}}"; shift 3; '
            'while [ "$1" != "--" ]; do export "$1"; shift; done; shift; exec "$BASH" "$@"')
+
+# A telepítő- és csonkscriptek által használt külső programok (a többi bash-beépített).
+SYSTEM_TOOLS = ("bash", "env", "dirname", "mkdir", "rm", "cp", "cat", "chmod")
 
 
 def _bash_works(exe):
@@ -89,9 +94,12 @@ def bash_path(p):
 BASH = find_bash()
 
 
-def write_lf(path, text):
+def write_lf(path, text, executable=False):
+    """Szöveg írása LF sorvéggel; `executable` esetén futtatható is (Linuxon a csonkoknak kell a jog)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(text.replace("\r\n", "\n").encode("utf-8"))
+    if executable:
+        path.chmod(0o755)
 
 
 @unittest.skipUnless(BASH, "nincs működő bash: a telepítő-scriptek tesztjei kimaradnak")
@@ -102,10 +110,12 @@ class LinuxScriptsTest(unittest.TestCase):
         tmp = Path(self._tmp.name)
         self.pkg = tmp / "csomag"
         self.stubs = tmp / "csonkok"
+        self.tools = tmp / "eszkozok"
         self.home = tmp / "home"
         self.home.mkdir()
         self.build_package()
         self.make_stubs()
+        self.make_tools()
 
     def build_package(self):
         for src, dst in PACKAGE_FILES.items():
@@ -120,13 +130,24 @@ class LinuxScriptsTest(unittest.TestCase):
                    "pacman": PACMAN_STUB, "sudo": SUDO_STUB}
         for name, text in content.items():
             if name not in omit:
-                write_lf(self.stubs / name, text)
+                write_lf(self.stubs / name, text, executable=True)
+
+    def make_tools(self):
+        """POSIX-on a csonkmappa mögötti PATH-elem: a SYSTEM_TOOLS symlinkjei. Windowson nincs (a bash mappája szolgál)."""
+        if os.name == "nt":
+            return
+        self.tools.mkdir()
+        for name in SYSTEM_TOOLS:
+            real = BASH if name == "bash" else shutil.which(name)
+            if real:
+                (self.tools / name).symlink_to(real)
 
     def bash(self, *argv, extra=(), env=None):
         """A bash a csonkokkal a PATH-on, HOME = self.home; az XDG_* változók törölve (az extra-ban adhatók meg)."""
         run_env = {k: v for k, v in os.environ.items() if not k.startswith("XDG_")}
         run_env.update(env or {})
-        cmd = [BASH, "-c", WRAPPER, "_", bash_path(self.home), bash_path(self.stubs), *extra, "--", *argv]
+        tools = bash_path(self.tools) if self.tools.is_dir() else ""
+        cmd = [BASH, "-c", WRAPPER, "_", bash_path(self.home), bash_path(self.stubs), tools, *extra, "--", *argv]
         return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
                               env=run_env, timeout=120)
 
@@ -261,7 +282,7 @@ class LinuxScriptsTest(unittest.TestCase):
         self.assertEqual(len(self.venv_hivasok()), 1)
         marker = self.base / "venv" / "marker"
         marker.write_text("x", encoding="utf-8")
-        write_lf(self.base / "venv" / "bin" / "python", "#!/usr/bin/env bash\nexit 1\n")
+        write_lf(self.base / "venv" / "bin" / "python", "#!/usr/bin/env bash\nexit 1\n", executable=True)
         r = self.install()
         self.assertOk(r)
         self.assertEqual(len(self.venv_hivasok()), 2, "a törött venvet újra kell építeni")
